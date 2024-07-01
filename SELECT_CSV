@@ -1,0 +1,45 @@
+select
+ 	cast([1] as bigint) -1  as id_linha_csv,
+    [2] AS produto,
+    [3] AS tipo_contratacao,
+    [4] AS tipo_custo,
+    [5] AS semana,
+    [6] AS faixa_etaria,+
+    [7] AS valor_jan,
+    [8] AS valor_fev,
+	[9] AS valor_mar,
+	[10] as valor_abr,
+	[11] AS valor_mai,
+	[12] AS valor_jun,
+	[13] AS valor_jul,
+	[14] AS valor_ago,
+	[15] AS valor_set,
+	[16] AS valor_out,
+	[17] AS valor_nov,
+	[18] AS valor_dez,
+	[19] AS total_ano
+from (
+   select
+        id, identificador, value, ROW_NUMBER() OVER (PARTITION BY id ORDER BY (SELECT NULL)) AS rn
+    from (
+        select ltrim(ROW_NUMBER() OVER (ORDER BY (SELECT NULL))) + ';' + substring(value, 1, len(value)-1) id, identificador
+        -- select *
+		from
+            DT_app02_arquivos_de_custos dt
+            CROSS APPLY string_split(cast(dt.arquivo AS varchar(max)), CHAR(10)) l
+        where
+            l.value <> ''
+            and dt.identificador = 2
+        ) Lin
+        CROSS APPLY string_split(Lin.id, ';') C
+    ) Col
+    pivot(max(value) FOR RN IN (
+    [1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],[15],[16],[17],[18],[19])
+) AS pvt
+where
+  [1] > 1
+order by cast([1] as bigint);
+go
+
+
+
