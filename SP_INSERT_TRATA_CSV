@@ -1,0 +1,149 @@
+
+CREATE PROCEDURE sp_carrega_premissas_de_custos
+AS
+BEGIN
+    -- Passo 1: Truncar a tabela temporária
+    TRUNCATE TABLE DT_app02_txt_etl_premissas_de_custos;
+
+    -- Passo 2: Declarar o identificador
+    DECLARE @identificador INT;
+
+    -- Passo 3: Obter o último identificador da tabela de arquivos
+    SELECT @identificador = MAX(identificador)
+    FROM DT_app02_arquivos_de_custos;
+
+    -- Passo 4: Inserir dados do arquivo na tabela temporária
+    INSERT INTO DT_app02_txt_etl_premissas_de_custos (
+        linha_csv, 
+        produto, 
+        tipo_contratacao, 
+        tipo_custo, 
+        semana, 
+        faixa_etaria, 
+        valor_jan, 
+        valor_fev, 
+        valor_mar, 
+        valor_abr, 
+        valor_mai, 
+        valor_jun, 
+        valor_jul, 
+        valor_ago, 
+        valor_set,
+        valor_out, 
+        valor_nov, 
+        valor_dez, 
+        total_ano
+    )
+    SELECT
+        CAST([1] AS BIGINT) - 1 AS id_linha_csv,
+        TRIM([2]) AS produto,
+        TRIM([3]) AS tipo_contratacao,
+        TRIM([4]) AS tipo_custo,
+        TRIM([5]) AS semana,
+        TRIM([6]) AS faixa_etaria,
+        TRIM([7]) AS valor_jan,
+        TRIM([8]) AS valor_fev,
+        TRIM([9]) AS valor_mar,
+        TRIM([10]) AS valor_abr,
+        TRIM([11]) AS valor_mai,
+        TRIM([12]) AS valor_jun,
+        TRIM([13]) AS valor_jul,
+        TRIM([14]) AS valor_ago,
+        TRIM([15]) AS valor_set,
+        TRIM([16]) AS valor_out,
+        TRIM([17]) AS valor_nov,
+        TRIM([18]) AS valor_dez,
+        REPLACE(REPLACE(TRIM([19]), CHAR(13), ''), CHAR(10), '') AS total_ano
+    FROM (
+        SELECT
+            id, 
+            identificador, 
+            value, 
+            ROW_NUMBER() OVER (PARTITION BY id ORDER BY (SELECT NULL)) AS rn
+        FROM (
+            SELECT 
+                LTRIM(ROW_NUMBER() OVER (ORDER BY (SELECT NULL))) + ';' + SUBSTRING(value, 1, LEN(value)-1) id, 
+                identificador
+            FROM
+                DT_app02_arquivos_de_custos dt
+                CROSS APPLY STRING_SPLIT(CAST(dt.arquivo AS VARCHAR(MAX)), CHAR(10)) l
+            WHERE
+                l.value <> ''
+                AND dt.identificador = @identificador
+        ) Lin
+        CROSS APPLY STRING_SPLIT(Lin.id, ';') C
+    ) Col
+    PIVOT(MAX(value) FOR rn IN (
+        [1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],[15],[16],[17],[18],[19]
+    )) AS pvt
+    WHERE
+        [1] > 1
+    ORDER BY CAST([1] AS BIGINT);
+
+	UPDATE DT_app02_txt_etl_premissas_de_custos
+	set sk_cenario = 2,
+		sk_ano = 2024
+
+
+	-- Passo 5: Deletar dados da tabela final
+	DELETE FROM DT_app02_premissas_de_custos
+	WHERE sk_cenario in (select distinct sk_cenario from DT_app02_txt_etl_premissas_de_custos)
+	AND sk_ano in (select distinct sk_ano from DT_app02_txt_etl_premissas_de_custos)
+    
+	-- Passo 6: Inserir dados na tabela final
+    INSERT INTO DT_app02_premissas_de_custos (
+        cod_user,
+        dat_update,
+        produto, 
+        tipo_contratacao, 
+        tipo_custo,
+        semana, 
+        faixa_etaria, 
+        valor_jan, 
+        valor_fev, 
+        valor_mar, 
+        valor_abr, 
+        valor_mai, 
+        valor_jun, 
+        valor_jul, 
+        valor_ago, 
+        valor_set,
+        valor_out,
+        valor_nov, 
+        valor_dez,
+        total_ano,
+		sk_cenario,
+		sk_ano
+    )
+    SELECT 
+        'admin' AS cod_user,
+        GETDATE() AS dat_update,
+        produto,
+        tipo_contratacao,
+        tipo_custo,
+        semana,
+        faixa_etaria,
+        CAST(REPLACE(REPLACE(IIF(valor_jan = '-', null, valor_jan), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_jan,
+        CAST(REPLACE(REPLACE(IIF(valor_fev = '-', null, valor_fev), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_fev,
+        CAST(REPLACE(REPLACE(IIF(valor_mar = '-', null, valor_mar), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_mar,
+        CAST(REPLACE(REPLACE(IIF(valor_abr = '-', null, valor_abr), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_abr,
+        CAST(REPLACE(REPLACE(IIF(valor_mai = '-', null, valor_mai), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_mar,
+        CAST(REPLACE(REPLACE(IIF(valor_jun = '-', null, valor_jun), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_jun,
+        CAST(REPLACE(REPLACE(IIF(valor_jul = '-', null, valor_jul), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_jul,
+        CAST(REPLACE(REPLACE(IIF(valor_ago = '-', null, valor_ago), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_ago,
+        CAST(REPLACE(REPLACE(IIF(valor_set = '-', null, valor_set), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_set,
+        CAST(REPLACE(REPLACE(IIF(valor_out = '-', null, valor_out), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_out,
+        CAST(REPLACE(REPLACE(IIF(valor_nov = '-', null, valor_nov), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_nov,
+        CAST(REPLACE(REPLACE(IIF(valor_dez = '-', null, valor_dez), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS valor_dez,
+        CAST(REPLACE(REPLACE(IIF(total_ano = '-', null, total_ano), '.', ''), ',', '.')  AS DECIMAL (10,2)) AS total_ano,
+		sk_cenario,
+		sk_ano
+    FROM DT_app02_txt_etl_premissas_de_custos;
+END;
+
+
+-- select top 10 * from DT_app02_txt_etl_premissas_de_custos
+
+-- select top 10 * from DT_app02_premissas_de_custos
+
+-- select * from DT_app02_arquivos_de_custos
