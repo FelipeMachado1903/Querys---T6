@@ -1,0 +1,34 @@
+use treinamento_sysphera_dev
+
+DECLARE @qtarquivos INT = 0
+DECLARE @count INT = 0
+DECLARE @idarq INT = 0 
+DECLARE @tmparquivos table (identificador int,
+							numberow int)
+print @qtarquivos
+ 
+insert into @tmparquivos (identificador, numberow)
+ 
+select identificador, ROW_NUMBER() OVER(ORDER BY identificador ASC) AS Row
+from DT_app02_arquivos_de_custos
+order by identificador
+ 
+set @qtarquivos = @@ROWCOUNT
+ 
+print @qtarquivos
+ 
+set @count = 1
+ 
+while @qtarquivos >= @count
+
+ begin
+
+		select @idarq = identificador
+		from @tmparquivos
+		where numberow = @count
+
+		print @idarq
+
+		set @count = @count +1
+
+ end
