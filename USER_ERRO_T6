@@ -1,0 +1,7 @@
+select * from REP_EXPLORER_OBJECT -- Tabela com informações usuário
+where dscDescription like '%Bruna%' -- Nome do usuário
+
+--update REP_EXPLORER_OBJECT
+set codAuthor = '417',
+namAuthor = 'Henrique Vianna'
+where codobject = 1211
