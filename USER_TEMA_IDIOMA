@@ -1,0 +1,10 @@
+select * from REP_CONFIGURATION -- Default pra novos usuários.
+ 
+select * from REP_USER_CONFIGURATION -- Configurações de cada usuário. 
+
+select * from REP_USER_CONFIGURATION
+where dscConfiguration != 'pt' and codConfiguration = 'Culture'
+
+--update REP_USER_CONFIGURATION
+set dscConfiguration = 'pt'
+where codUser = 'peterson.silva' and codConfiguration = 'Culture'
