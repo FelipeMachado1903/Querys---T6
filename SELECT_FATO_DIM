@@ -1,0 +1,39 @@
+select TOP 10 * from f_app1;
+select top 5 * from d_cenario_app1;
+
+-- 40.1. GASTOS (P27, Abril, Gastos Gerais) 
+
+select value as Gastos_Gerais
+from f_app1 f
+	inner join d_entidade_app1 e on e.sk_entidade = f.sk_entidade
+	inner join d_conta_app1 con on con.sk_conta = f.sk_conta
+	inner join d_cenario_app1 c on c.sk_cenario = f.sk_cenario
+	inner join d_tempo_app1 t on t.sk_tempo = f.sk_tempo
+where c.sk_cenario = 62
+and con.sk_conta = 322
+and t.sk_tempo = 76
+
+-- 40.1. GASTOS (P27, Setembro, Gastos Totais) 
+
+select sum(value) as Gastos_Totais
+from f_app1 f
+	inner join d_conta_app1 con on con.sk_conta = f.sk_conta
+	inner join d_entidade_app1 e on e.sk_entidade = f.sk_entidade
+	inner join d_cenario_app1 c on c.sk_cenario = f.sk_cenario
+	inner join d_tempo_app1 t on t.sk_tempo = f.sk_tempo
+where c.sk_cenario = 62
+and con.sk_conta_l3 = 317
+and t.sk_tempo = 81
+
+-- 02.2. RESUMO GASTOS (Forecast Setembro/22, Total Despesas e Eliminações e Presidência)
+
+select sum(value) as Presidência_Agosto
+from f_app1 f
+	inner join d_conta_app1 con on con.sk_conta = f.sk_conta
+	inner join d_entidade_app1 e on e.sk_entidade = f.sk_entidade
+	inner join d_cenario_app1 c on c.sk_cenario = f.sk_cenario
+	inner join d_tempo_app1 t on t.sk_tempo = f.sk_tempo
+where c.sk_cenario = 12
+and t.sk_tempo = 56
+and con.sk_conta_l0 = 56
+and e.sk_entidade_l3 = 4
