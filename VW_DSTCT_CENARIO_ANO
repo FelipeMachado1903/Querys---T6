@@ -2,3 +2,9 @@ CREATE view [dbo].[vw_pbi_parametro_cenario] as
 select distinct cenario, sk_cenario
 from   d_cenario_app1 dca
 GO
+
+-- utilizar essa pra view de divisão dos cenários por ano
+CREATE VIEW [dbo].[vw_pbi_parametro_cenario_ano] AS
+select distinct cenario_ano
+from vw_pbi_cenario_ano
+GO
