@@ -1,0 +1,20 @@
+CREATE VIEW [dbo].[vw_pbi_cenario_ano] AS 
+--VIEW Insere valor cenário 
+select	tb.sk_cenario, 
+		tb.cenario,
+		tb.sk_tempo,
+		tb.tempo_l1,
+		tb.cenario_ano,
+		nm.value
+from
+	(select dce.sk_cenario,
+			dce.cenario,
+			dte.sk_tempo,
+			dte.tempo_l1,
+			dce.cenario + ' (' + dte.tempo_l1 + ')' as cenario_ano
+			from d_cenario_app1 as dce inner join
+			d_tempo_app1 as dte
+				on (dte.date between dce.date_start and dce.date_end)) as tb
+				inner join  f_app1_scenario as nm
+				on (tb.sk_cenario = nm.sk_cenario and tb.sk_tempo = nm.sk_tempo)
+GO
