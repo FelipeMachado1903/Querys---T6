@@ -1,0 +1,37 @@
+ALTER VIEW [dbo].[VW_app1_dim_conta_DRE] AS  
+SELECT	c.sk_conta, 
+		c.conta as [Conta], 
+		c.[conta_l0] as [Conta Nível 1], 
+		c.[conta_l1] as [Conta Nível 2], 
+		c.[conta_l2] as [Conta Nível 3], 
+		c.[conta_l3] as [Conta Nível 4], 
+		c.[conta_l4] as [Conta Nível 5], 
+		c.[conta_l5] as [Conta Nível 6], 
+		c.[conta_l6] as [Conta Nível 7], 
+		c.[conta_l7] as [Conta Nível 8], 
+		c.[tipoconta] as [Tipo de Conta], 
+--		c.[aggregationFunction] as [Função de Agregação], 
+		c.[tipodado] as [Tipo de Dado], 
+--		c.[descricao] as [Descrição], 
+--		c.[dividendAccount] as [Conta Dividendo], 
+--		c.[divisorAccount] as [Conta Divisor], 
+--		c.[linkedList] as [Lista], 
+		c.[ordenar_membros] as [Ordenar Membros], 
+--		c.[bi] as [BI], 
+		c0.ordenar_membros as [Ordenar Nível 1], 
+		c1.ordenar_membros as [Ordenar Nível 2], 
+		c2.ordenar_membros as [Ordenar Nível 3], 
+		c3.ordenar_membros as [Ordenar Nível 4], 
+		c4.ordenar_membros as [Ordenar Nível 5], 
+		c5.ordenar_membros as [Ordenar Nível 6], 
+		c6.ordenar_membros as [Ordenar Nível 7]
+FROM [d_conta_app1] as c 
+	left outer join d_conta_app1 c0 on (c0.sk_conta = c.sk_conta_l0)
+	left outer join d_conta_app1 c1 on (c1.sk_conta = c.sk_conta_l1)
+	left outer join d_conta_app1 c2 on (c2.sk_conta = c.sk_conta_l2)
+	left outer join d_conta_app1 c3 on (c3.sk_conta = c.sk_conta_l3)
+	left outer join d_conta_app1 c4 on (c4.sk_conta = c.sk_conta_l4)
+	left outer join d_conta_app1 c5 on (c5.sk_conta = c.sk_conta_l5)
+	left outer join d_conta_app1 c6 on (c6.sk_conta = c.sk_conta_l6)
+
+GO
