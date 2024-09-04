@@ -1,0 +1,4 @@
+CREATE view [dbo].[vw_pbi_parametro_cenario] as
+select distinct cenario, sk_cenario
+from   d_cenario_app1 dca
+GO
