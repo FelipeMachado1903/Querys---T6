@@ -1,0 +1,15 @@
+select * from rep_user_configuration
+where coduser like 'r%%'
+
+INSERT INTO REP_USER_CONFIGURATION
+(codUser, codConfiguration, dscConfiguration)
+VALUES('sstefani', 'SendAdminRole', 'True');
+
+
+-- btolentino
+-- aline.regina
+-- fgalvao
+-- lfaraujo
+-- rromanelli
+-- sstefani
+-- mo.goncalves
