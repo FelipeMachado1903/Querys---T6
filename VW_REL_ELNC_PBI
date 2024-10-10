@@ -1,0 +1,72 @@
+ALTER VIEW [dbo].[VW_DT_app5_seguridad_users_pbi] AS 
+SELECT 
+    DT.[sk_cliente], 
+    DT.[sk_entidad],
+	p.sk_producto,
+	p.bu,
+    DT.[user_], 
+    DT.[name], 
+    DT.[dscEmail], 
+    DT.[codGroup], 
+    DT.[namGroup], 
+    L353.sk_entidad AS L353_sk_entidad, 
+    L353.entidad AS L353_entidad, 
+    L353.level AS L353_level, 
+    L353.align_members AS L353_align_members, 
+    L353.new_attribute AS L353_new_attribute, 
+    L354.sk_cliente AS L354_sk_cliente, 
+    L354.cliente AS L354_cliente, 
+    L354.level AS L354_level, 
+    L354.align_members AS L354_align_members, 
+    L354.nombre AS L354_nombre, 
+    L354.sucursal AS L354_sucursal, 
+    L354.codcliente AS L354_codcliente, 
+    L354.ship_to AS L354_ship_to, 
+    L354.tipo AS L354_tipo, 
+    L354.busucursal AS L354_busucursal, 
+    L354.cod_actual AS L354_cod_actual, 
+    L354.activo AS L354_activo, 
+    L355.codUser AS L355_codUser, 
+    L355.flgActive AS L355_flgActive, 
+    L355.dscEmail AS L355_dscEmail, 
+    L355.dscFirstName + ' ' + L355.dscLastName AS L355_FullName, 
+    L355.dscFirstName + ' ' + L355.dscLastName + '(' + L355.dscEmail + ')'  AS L355_FullNameAndEmail
+FROM 
+    (--Representante y Gerentes Territoriales
+    SELECT 
+        s.sucursal sk_cliente, 
+        s.bu sk_entidad,  
+        s.user_, 
+        CONCAT(u.dscFirstName,' ', u.dscLastName) name, 
+        u.dscEmail, 
+        g.codGroup, 
+        g.namGroup 
+    FROM 
+        REP_USER_GROUP ug 
+    INNER JOIN 
+        REP_GROUP g ON ug.codGroup = g.codGroup
+    INNER JOIN 
+        REP_USER u ON ug.codUser = u.codUser
+    INNER JOIN 
+        DT_seguridad_por_sucursal s ON ug.codUser = s.user_
+    WHERE 
+        g.codApplication = 5 
+        AND u.flgActive = 'S' 
+        AND g.codGroup IN (62)
+    ) AS DT 
+LEFT JOIN 
+    [d_entidad_app5] AS L353 
+    ON DT.[sk_entidad] = L353.sk_entidad 
+LEFT JOIN 
+    [d_cliente_app5] AS L354 
+    ON DT.[sk_cliente] = L354.sk_cliente 
+LEFT JOIN 
+    [REP_USER] AS L355 
+    ON DT.[user_] = L355.codUser
+inner join d_producto_app5 p 
+	ON (case when DT.sk_entidad = 3 then 11
+			 when DT.sk_entidad = 4 then 12
+			 when DT.sk_entidad = 5 then 13
+			 when DT.sk_entidad = 6 then 14
+		end = sk_producto_l2) 
+GO
