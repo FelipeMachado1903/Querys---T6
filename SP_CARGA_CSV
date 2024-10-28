@@ -1,0 +1,305 @@
+
+ALTER PROCEDURE [dbo].[sp_carrega_premissas_de_custos]
+AS
+BEGIN
+
+	EXEC sp_t6_etl_log_add '<<< INICIO SP >>>', @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+    -- Truncando a tabela TXT para inserir os dados
+    TRUNCATE TABLE DT_app02_txt_etl_premissas_de_custos;
+
+	-- Declarando variáveis
+    DECLARE @identificador INT;
+	DECLARE @sk_cenario INT;
+	DECLARE @sk_ano INT;
+	DECLARE @sk_entidade INT;
+	DECLARE @sk_conta INT;
+	DECLARE @count INT = 0;
+	DECLARE @qtarquivos INT;
+	DECLARE @cod int;
+	declare @contador int;
+	declare @txt nvarchar(255);
+	declare @nomeArquivo nvarchar(255);
+	declare @acaoA nvarchar(500) = 'https://t6planning.unimedbh.com.br/T6Planning/l/explorer/13980'
+	declare @rows as int
+	declare @status as nvarchar(50)
+	DECLARE @table table (
+			id INT identity,
+			cod int)
+
+	INSERT INTO @table (cod)
+
+	SELECT distinct identificador
+	FROM DT_app02_arquivos_de_custos as dac
+	where sk_cenario in (select max(dscValue)
+						from REP_LOADPARAMETER
+						where codLoadParameter = 47)
+
+	SELECT @qtarquivos = count(*) from @table
+
+	set @txt = 'Verificado ' +cast(@qtarquivos as nvarchar(20)) + ' arquivos para importação.'
+	exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	SET @count = 1
+
+	WHILE @count <= @qtarquivos -- Início do LOOP
+	BEGIN
+
+		select @cod = cod
+		from @table 
+		where id = @count
+
+		select 
+		@sk_ano = dac.sk_ano, 
+		@sk_cenario = dac.sk_cenario,
+		@sk_entidade = dac.sk_entidade,
+		@sk_conta = dac.sk_conta,
+		@nomeArquivo = dac.arquivo_fileName
+		from DT_app02_arquivos_de_custos as dac
+		where identificador = @cod
+
+		set @txt = 'Carregando arquivo ' +cast(@count as nvarchar(20)) + ': ' + @nomeArquivo
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+		-- Inserindo e tratando os dados do arquivo para tabela TXT
+		INSERT INTO DT_app02_txt_etl_premissas_de_custos(
+		linha_csv,
+		produto, 
+		tipo_contratacao, 
+		tipo_custo, 
+		semana, 
+		faixa_etaria, 
+		valor_jan, 
+		valor_fev, 
+		valor_mar, 
+		valor_abr, 
+		valor_mai, 
+		valor_jun, 
+		valor_jul, 
+		valor_ago, 
+		valor_set,
+		valor_out, 
+		valor_nov, 
+		valor_dez,
+		total_ano,
+		sk_ano,
+		sk_cenario,
+		sk_entidade,
+		sk_conta,
+		sk_produto,
+		sk_tipo_contratacao,
+		sk_tipo_custo,
+		sk_semana,
+		sk_faixa_etaria,
+		nome_arquivo
+		)
+		SELECT
+		CAST([1] AS BIGINT) - 1 AS id_linha_csv,
+		TRIM([2]) AS produto,
+		TRIM([3]) AS tipo_contratacao,
+		TRIM([4]) AS tipo_custo,
+		TRIM([5]) AS semana,
+		TRIM([6]) AS faixa_etaria,
+		REPLACE(REPLACE(REPLACE(TRIM([7]), '.', ''), ',', '.'),'R$ ', '') AS valor_jan,
+		REPLACE(REPLACE(REPLACE(TRIM([8]), '.', ''), ',', '.'),'R$ ', '') AS valor_fev,
+		REPLACE(REPLACE(REPLACE(TRIM([9]), '.', ''), ',', '.'),'R$ ', '') AS valor_mar,
+		REPLACE(REPLACE(REPLACE(TRIM([10]), '.', ''), ',', '.'),'R$ ', '') AS valor_abr,
+		REPLACE(REPLACE(REPLACE(TRIM([11]), '.', ''), ',', '.'),'R$ ', '') AS valor_mai,
+		REPLACE(REPLACE(REPLACE(TRIM([12]), '.', ''), ',', '.'),'R$ ', '') AS valor_jun,
+		REPLACE(REPLACE(REPLACE(TRIM([13]), '.', ''), ',', '.'),'R$ ', '') AS valor_jul,
+		REPLACE(REPLACE(REPLACE(TRIM([14]), '.', ''), ',', '.'),'R$ ', '') AS valor_ago,
+		REPLACE(REPLACE(REPLACE(TRIM([15]), '.', ''), ',', '.'),'R$ ', '') AS valor_set,
+		REPLACE(REPLACE(REPLACE(TRIM([16]), '.', ''), ',', '.'),'R$ ', '') AS valor_out,
+		REPLACE(REPLACE(REPLACE(TRIM([17]), '.', ''), ',', '.'),'R$ ', '') AS valor_nov,
+		REPLACE(REPLACE(REPLACE(TRIM([18]), '.', ''), ',', '.'),'R$ ', '') AS valor_dez,
+		REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM([19]), CHAR(13), ''), CHAR(10), ''), '.', ''), ',', '.'),'R$ ', '') AS total_ano,
+		@sk_ano AS sk_ano,
+		@sk_cenario AS sk_cenario,
+		@sk_entidade AS sk_entidade,
+		@sk_conta AS sk_conta,
+		-2 AS sk_produto,
+		-2 AS sk_tipo_contratacao,
+		-2 AS sk_tipo_custo,
+		-2 AS sk_semana,
+		-2 AS sk_faixa_etaria,
+		@nomeArquivo
+		FROM (
+		SELECT
+        id, 
+        identificador, 
+        value, 
+			ROW_NUMBER() OVER (PARTITION BY id ORDER BY (SELECT NULL)) AS rn
+			FROM (
+				SELECT 
+				LTRIM(ROW_NUMBER() OVER (ORDER BY (SELECT NULL))) + ';' + SUBSTRING(value, 1, LEN(value)-1) id, 
+				identificador
+			FROM
+				DT_app02_arquivos_de_custos dt
+				CROSS APPLY STRING_SPLIT(CAST(dt.arquivo AS VARCHAR(MAX)), CHAR(10)) l
+			WHERE
+				l.value <> ''
+				AND dt.identificador = @cod
+			) Lin
+				CROSS APPLY STRING_SPLIT(Lin.id, ';') C
+			) Col
+				PIVOT(MAX(value) FOR rn IN (
+				[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],[11],[12],[13],[14],[15],[16],[17],[18],[19]
+			)) AS pvt
+			WHERE
+			[1] > 1
+			ORDER BY CAST([1] AS BIGINT)
+
+			set @contador = @@ROWCOUNT
+			set @txt = 'Carregados ' + format(@contador,'N0') + ' registros.'
+			exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+		SET @count = @count + 1 -- Final do LOOP
+
+	END
+
+	select	@rows = count(*)
+	from	DT_app02_txt_etl_premissas_de_custos
+
+	EXEC sp_t6_etl_log_add 'Carga de arquivos CSV finalizadas.', @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+	EXEC sp_t6_etl_log_add 'Início dos Updates e formatação das SKs', @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	UPDATE DT_app02_txt_etl_premissas_de_custos -- PRODUTO
+	SET sk_produto = p.sk_produto
+	from DT_app02_txt_etl_premissas_de_custos t
+	inner join DT_etl_depara_prodige_produto p 
+	on (p.dsc_tipo_produto = IIF(T.produto IN ('NA','N/A'),'Não Aplicável', T.produto))
+
+	set @contador = @@ROWCOUNT
+	set @txt = format(@contador,'N0') + ' codigos de PRODUTOS atualizados.'
+	if (@contador < @rows) 
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2, @tipo = 'A', @acao = @acaoA
+	else
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	UPDATE DT_app02_txt_etl_premissas_de_custos -- TIPO CONTRATAÇÃO
+	SET sk_tipo_contratacao = tc.sk_tipo_contratacao
+	FROM DT_app02_txt_etl_premissas_de_custos t
+	INNER JOIN DT_etl_depara_prodige_tipo_contratacao tc 
+	on (tc.dsc_tipo_contrato = IIF(t.tipo_contratacao in ('NA','N/A'),'NAO INFORMADO', t.tipo_contratacao))
+
+	set @contador = @@ROWCOUNT
+	set @txt = format(@contador,'N0') + ' codigos de TIPO CONTRATACAO atualizados.'
+	if (@contador < @rows) 
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2, @tipo = 'A', @acao = @acaoA
+	else
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	UPDATE DT_app02_txt_etl_premissas_de_custos -- TIPO CUSTO
+	SET sk_tipo_custo = tc.sk_tipo_custo
+	from DT_app02_txt_etl_premissas_de_custos t
+	inner join d_tipo_custo_app2 tc
+	ON (iif(t.tipo_custo in ('NA','N/A'),'NAO IDENTIFICADO', t.tipo_custo)
+		= SUBSTRING(tc.dsc_tipo_custo, CHARINDEX('- ',tc.dsc_tipo_custo) + 2, LEN(tc.dsc_tipo_custo)))
+
+	set @contador = @@ROWCOUNT
+	set @txt = format(@contador,'N0') + ' codigos de TIPO CUSTO atualizados.'
+	if (@contador < @rows) 
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2, @tipo = 'A', @acao = @acaoA
+	else
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	UPDATE DT_app02_txt_etl_premissas_de_custos -- SEMANA
+	SET sk_semana = s.sk_semana
+	FROM DT_app02_txt_etl_premissas_de_custos t
+	INNER JOIN d_semana_app2 S
+	ON (dsc_semana = IIF(T.SEMANA in ('NA','N/A'),'NAO SE APLICA', T.SEMANA))
+
+	set @contador = @@ROWCOUNT
+	set @txt = format(@contador,'N0') + ' codigos de SEMANA atualizados.'
+	if (@contador < @rows) 
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2, @tipo = 'A', @acao = @acaoA
+	else
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	UPDATE DT_app02_txt_etl_premissas_de_custos -- FAIXA ETARIA
+	SET sk_faixa_etaria = f.sk_faixa_etaria
+	FROM DT_app02_txt_etl_premissas_de_custos t
+	INNER JOIN d_faixa_etaria_app2 AS f 
+	ON (
+		IIF(t.faixa_etaria IN ('Não Aplicável', 'N/A'), 'NA', t.faixa_etaria) = 
+		SUBSTRING(f.dsc_faixa_etaria, CHARINDEX('- ', f.dsc_faixa_etaria) + 2, LEN(f.dsc_faixa_etaria))
+		OR
+		IIF(t.faixa_etaria IN ('Não Aplicável', 'N/A'), 'NA', t.faixa_etaria) = f.dsc_faixa_etaria)
+
+	set @contador = @@ROWCOUNT
+	set @txt = format(@contador,'N0') + ' codigos de FAIXA ETARIA atualizados.'
+	if (@contador < @rows) 
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2, @tipo = 'A', @acao = @acaoA
+	else
+		exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	-- Deletando dados da tabela final
+	DELETE FROM DT_etl_premissas_de_custos
+	WHERE sk_cenario in (select max(sk_cenario) from DT_etl_config_app2)
+	--	AND sk_ano in (select distinct sk_ano from DT_app02_txt_etl_premissas_de_custos)
+    
+	set @contador = @@ROWCOUNT
+	set @txt = format(@contador,'N0') + ' registros EXCLUIDOS da tabela TMP.'
+	exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	-- Inserindo dados na tabela final
+    INSERT INTO DT_etl_premissas_de_custos (
+        cod_user,
+        dat_update,
+		sk_cenario,
+		sk_ano,
+        sk_entidade,
+		sk_conta,
+		sk_produto,
+        sk_tipo_contratacao, 
+        sk_tipo_custo,
+        sk_semana, 
+        sk_faixa_etaria, 
+        valor_jan, 
+        valor_fev, 
+        valor_mar, 
+        valor_abr, 
+        valor_mai, 
+        valor_jun, 
+        valor_jul, 
+        valor_ago, 
+        valor_set,
+        valor_out,
+        valor_nov, 
+        valor_dez,
+		nome_arquivo
+    )
+    SELECT 
+        'admin' AS cod_user,
+        GETDATE() AS dat_update,
+		sk_cenario,
+		sk_ano,
+        sk_entidade,
+		sk_conta,
+		sk_produto,
+        sk_tipo_contratacao, 
+        sk_tipo_custo,
+        sk_semana, 
+        sk_faixa_etaria, 
+        CAST(IIF(valor_jan = '-', null, valor_jan) AS DECIMAL (28,14)) AS valor_jan,
+        CAST(IIF(valor_fev = '-', null, valor_fev) AS DECIMAL (28,14)) AS valor_fev,
+        CAST(IIF(valor_mar = '-', null, valor_mar) AS DECIMAL (28,14)) AS valor_mar,
+        CAST(IIF(valor_abr = '-', null, valor_abr) AS DECIMAL (28,14)) AS valor_abr,
+        CAST(IIF(valor_mai = '-', null, valor_mai) AS DECIMAL (28,14)) AS valor_mar,
+        CAST(IIF(valor_jun = '-', null, valor_jun) AS DECIMAL (28,14)) AS valor_jun,
+        CAST(IIF(valor_jul = '-', null, valor_jul) AS DECIMAL (28,14)) AS valor_jul,
+        CAST(IIF(valor_ago = '-', null, valor_ago) AS DECIMAL (28,14)) AS valor_ago,
+        CAST(IIF(valor_set = '-', null, valor_set) AS DECIMAL (28,14)) AS valor_set,
+        CAST(IIF(valor_out = '-', null, valor_out) AS DECIMAL (28,14)) AS valor_out,
+        CAST(IIF(valor_nov = '-', null, valor_nov) AS DECIMAL (28,14)) AS valor_nov,
+        CAST(IIF(valor_dez = '-', null, valor_dez) AS DECIMAL (28,14)) AS valor_dez,
+		nome_arquivo
+	FROM DT_app02_txt_etl_premissas_de_custos;
+
+	set @contador = @@ROWCOUNT
+	set @txt = format(@contador,'N0') + ' registros INCLUIDOS da tabela TMP.'
+	exec sp_t6_etl_log_add @txt, @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+	EXEC sp_t6_etl_log_add '>>> FINAL SP <<<', @grupo = 'SP Carrega Premissas Custos', @tipo_processo = 2
+
+END;
