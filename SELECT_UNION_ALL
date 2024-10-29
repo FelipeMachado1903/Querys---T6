@@ -1,0 +1,32 @@
+SELECT 
+    w.sk_conta, w.sk_tempo, w.sk_cenario, w.sk_entidade, w.sk_colaborador, 
+    w.sk_cargo, w.sk_consolidacao, w.sk_centro_de_custos, w.Valor 
+FROM (
+    SELECT 41 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, salario AS Valor 
+    FROM DT_cad_dados_colaborador_app3 
+	WHERE sk_cenario = @sk_cenario
+    UNION ALL
+    SELECT 43 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, admissao AS Valor 
+    FROM DT_cad_dados_colaborador_app3 
+	WHERE sk_cenario = @sk_cenario
+    UNION ALL
+    SELECT 127 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, vale_transporte AS Valor 
+    FROM DT_cad_dados_colaborador_app3 
+	WHERE sk_cenario = @sk_cenario
+    UNION ALL
+    SELECT 128 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, estacionamento AS Valor 
+    FROM DT_cad_dados_colaborador_app3 
+	WHERE sk_cenario = @sk_cenario
+    UNION ALL
+    SELECT 129 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, previdencia_privada AS Valor 
+    FROM DT_cad_dados_colaborador_app3 
+	WHERE sk_cenario = @sk_cenario
+    UNION ALL
+    SELECT 130 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, dependentes AS Valor 
+    FROM DT_cad_dados_colaborador_app3 
+	WHERE sk_cenario = @sk_cenario
+    UNION ALL
+    SELECT 93 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, headcount AS Valor 
+    FROM DT_cad_dados_colaborador_app3 
+	WHERE sk_cenario = @sk_cenario
+) AS w;
