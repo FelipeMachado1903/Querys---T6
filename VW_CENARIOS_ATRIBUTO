@@ -1,0 +1,65 @@
+ALTER VIEW [dbo].[vw_app5_fato_cenarios_pbi]
+AS
+	SELECT 
+    x.sk_cuenta, 
+    x.sk_tiempo, 
+    x.sk_entidad,
+    x.sk_producto, 
+    x.sk_consolidacion,
+    SUM(x.escenario_a) AS vlr_escenario_a, 
+    SUM(x.escenario_b) AS vlr_escenario_b,
+    -- Cálculo da nova coluna com limites ajustados
+    CASE 
+        WHEN SUM(x.escenario_b) = 0 THEN 0 -- Escenario B = 0 retorna 0%
+        WHEN SUM(x.escenario_a) = 0 THEN 0 -- Escenario A = 0 retorna 0%
+        ELSE 
+            CASE 
+                WHEN 1 - (ABS((SUM(x.escenario_b) - SUM(x.escenario_a)) / SUM(x.escenario_b))) < 0 THEN 0
+                WHEN 1 - (ABS((SUM(x.escenario_b) - SUM(x.escenario_a)) / SUM(x.escenario_b))) > 1 THEN 1
+                ELSE 1 - (ABS((SUM(x.escenario_b) - SUM(x.escenario_a)) / SUM(x.escenario_b)))
+            END
+    END AS calculo
+FROM (
+    SELECT 
+        F.sk_cuenta, 
+        F.sk_tiempo,
+        F.sk_escenario, 
+        F.sk_entidad, 
+        F.sk_producto, 
+        F.sk_consolidacion, 
+        (F.value * A.aggregation_signal) AS escenario_a,
+        0.0 AS escenario_b
+    FROM f_app5 AS F 
+    INNER JOIN d_cuenta_app5 AS A 
+    ON F.sk_cuenta = A.sk_cuenta
+    WHERE F.sk_escenario IN (
+        SELECT ISNULL(MAX(sk_escenario), 1) 
+        FROM d_escenario_app5 
+        WHERE escenario_a = 'Si' AND visible = 'SI'
+    )
+    UNION ALL
+    SELECT 
+        F.sk_cuenta, 
+        F.sk_tiempo, 
+        F.sk_escenario, 
+        F.sk_entidad,
+        F.sk_producto, 
+        F.sk_consolidacion,
+        0.0 AS escenario_a,
+        (F.value * A.aggregation_signal) AS escenario_b
+    FROM f_app5 AS F 
+    INNER JOIN d_cuenta_app5 AS A 
+    ON F.sk_cuenta = A.sk_cuenta
+    WHERE F.sk_escenario IN (
+        SELECT ISNULL(MAX(sk_escenario), 1) 
+        FROM d_escenario_app5 
+        WHERE escenario_b = 'Si' AND visible = 'SI'
+    )
+) AS x
+GROUP BY 
+    x.sk_cuenta, 
+    x.sk_tiempo, 
+    x.sk_entidad,
+    x.sk_producto, 
+    x.sk_consolidacion;
+GO
