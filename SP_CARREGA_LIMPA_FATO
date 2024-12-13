@@ -1,0 +1,152 @@
+ALTER PROCEDURE [dbo].[sp_app03_carrega_limpa_fato_rh]
+AS
+BEGIN
+
+  declare @rownum1 int
+	declare @rownum2 int
+	declare @msg1 varchar(max)
+	declare @sk_cenario int
+
+	exec sp_t6_etl_log_add 'Início das alterações na Fato.', @grupo = 'sp_app03_carrega_limpa_fato_rh', @tipo_processo = 2
+
+	BEGIN TRY
+
+	select @sk_cenario = cenario
+	FROM DT_etl_arquivo_dados_colaborador_app3
+	WHERE identificador = (SELECT MAX(identificador) FROM DT_etl_arquivo_dados_colaborador_app3);
+
+	-- DELETE
+	delete fto 
+	from f_app3 fto
+	inner join f_app3_scenario sce on (sce.sk_cenario = @sk_cenario and fto.sk_tempo = sce.sk_tempo)
+	where fto.sk_tempo in (	select t.sk_tempo 
+							from d_cenario_app3 as c inner join
+							d_tempo_app3 as t on (t.date between c.date_start and c.date_end)
+						  ) and sce.value <> 2 and hashData = 'Carga Colaboradores' and fto.sk_cenario = @sk_cenario
+
+	set @rownum1 = @@ROWCOUNT
+	set @msg1 = 'Deletados: '+ CAST(@rownum1 as varchar(max)) + ' registros na fato.'
+	exec sp_t6_etl_log_add @msg1, @grupo = 'sp_app03_carrega_limpa_fato_rh', @tipo_processo = 2
+
+	-- INSERT
+	insert into f_app3(sk_conta, sk_tempo, sk_cenario, sk_entidade, value, cod_user, dat_update, type_update, hashData, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos)
+
+	SELECT 
+		w.sk_conta, 
+		w.sk_tempo,
+		w.sk_cenario,
+		w.sk_entidade,
+		sum(w.Valor) AS valor,
+		'admin' AS cod_user,
+		getdate() AS dat_update,
+		'6' as type_update,
+		'Carga Colaboradores' AS hashdata,
+		w.sk_colaborador, 
+		w.sk_cargo,
+		w.sk_consolidacao,
+		w.sk_centro_de_custos
+	FROM (
+		SELECT 41 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, salario AS Valor 
+		FROM DT_cad_dados_colaborador_app3 
+		WHERE nivel_cargo <> 'ESTAGIÁRIO'
+		
+		UNION ALL
+		SELECT 16 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, salario AS Valor 
+		FROM DT_cad_dados_colaborador_app3 
+		WHERE nivel_cargo = 'ESTAGIÁRIO'
+
+		UNION ALL
+
+		SELECT 127 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, vale_transporte AS Valor 
+		FROM DT_cad_dados_colaborador_app3 
+		
+		UNION ALL
+		SELECT 128 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, estacionamento AS Valor 
+		FROM DT_cad_dados_colaborador_app3 
+		
+		UNION ALL
+		SELECT 129 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, previdencia_privada AS Valor 
+		FROM DT_cad_dados_colaborador_app3 
+		
+		UNION ALL
+		SELECT 130 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, dependentes AS Valor 
+		FROM DT_cad_dados_colaborador_app3 
+		
+		UNION ALL
+		
+		SELECT 93 AS sk_conta, a.sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, headcount AS Valor 
+		FROM DT_cad_dados_colaborador_app3 a
+		inner join d_tempo_app3 t on t.sk_tempo = a.sk_tempo 
+		
+
+		union all
+
+		SELECT 313 AS sk_conta, a.sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, headcount AS Valor 
+		FROM DT_cad_dados_colaborador_app3 a
+		inner join d_tempo_app3 t on t.sk_tempo = a.sk_tempo
+		where t.shortMonthName in ('Mai','Jun','Jul','Ago') and tipo_de_contrato='QUARENTENA'
+		
+
+		union all
+
+		SELECT 42 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, carga_horaria_mensal AS Valor 
+		FROM DT_cad_dados_colaborador_app3
+
+		UNION ALL
+		SELECT 213 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, tempo_de_casa AS Valor 
+		FROM DT_cad_dados_colaborador_app3
+
+		UNION ALL
+		SELECT 214 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, qt_trienios AS Valor 
+		FROM DT_cad_dados_colaborador_app3 
+	) AS w 
+	where  w.sk_cenario = @sk_cenario 
+	GROUP BY w.sk_conta, w.sk_tempo, w.sk_cenario, w.sk_entidade, w.sk_colaborador, w.sk_cargo, w.sk_consolidacao, w.sk_centro_de_custos
+
+	set @rownum1 = @@ROWCOUNT
+
+	-- Insert Admissão
+	INSERT INTO f_app3(sk_conta, sk_tempo, sk_cenario, sk_entidade, value, cod_user, dat_update, type_update, hashData, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos)
+
+	SELECT distinct
+		w.sk_conta, 
+		w.sk_tempo,
+		w.sk_cenario,
+		w.sk_entidade,
+		sum(DATEDIFF(DAY,'1970-01-01',(left(admissao,4) + '-' + substring(admissao,6,2) + '-' + right(admissao,2)))) as value,
+		'admin' AS cod_user,
+		getdate() AS dat_update,
+		'6' AS type_update,
+		'Carga Colaboradores' AS hashdata,
+		w.sk_colaborador, 
+		w.sk_cargo,
+		w.sk_consolidacao,
+		w.sk_centro_de_custos
+	FROM (
+		SELECT 43 AS sk_conta, sk_tempo, sk_cenario, sk_entidade, sk_colaborador, sk_cargo, sk_consolidacao, sk_centro_de_custos, admissao
+		FROM DT_cad_dados_colaborador_app3
+		) AS w 
+		where  w.sk_cenario = @sk_cenario 
+		GROUP BY w.sk_conta, w.sk_tempo, w.sk_cenario, w.sk_entidade, w.sk_colaborador, w.sk_cargo, w.sk_consolidacao, w.sk_centro_de_custos
+
+	set @rownum2 = @@ROWCOUNT
+	set @msg1 = 'Carregados: '+ CAST(@rownum1 + @rownum2 as varchar(max)) + ' registros na fato.'
+	exec sp_t6_etl_log_add @msg1, @grupo = 'sp_app03_carrega_limpa_fato_rh', @tipo_processo = 2
+
+	END TRY
+
+    BEGIN CATCH
+	    declare @errorCode int;
+		declare @errorMessage nvarchar(max);
+		select @errorCode = ERROR_NUMBER(), @errorMessage = ERROR_MESSAGE();
+		declare @error nvarchar(max);
+		declare @descricao_erro nvarchar(max);
+		select @error = CAST(error_number() as VARCHAR(100)) + '::' + ERROR_MESSAGE();
+		 set @descricao_erro = 'Erro no carregamento da fato.' + @error
+
+        exec sp_t6_etl_log_add @descricao_erro, @grupo = 'sp_app03_carrega_limpa_fato_rh', @tipo_processo = 2, @tipo = 'A';
+	 
+        THROW;
+    END CATCH
+
+END
