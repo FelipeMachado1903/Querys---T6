@@ -1,0 +1,86 @@
+ALTER PROCEDURE [dbo].[sp_app03_carrega_dt_rh]
+AS
+BEGIN
+
+	declare @sk_cenario int
+	declare @nome_arq nvarchar(255)
+	declare @txt nvarchar(255)
+	declare @contador int;
+
+	select @sk_cenario = cenario
+	FROM DT_etl_arquivo_dados_colaborador_app3
+	WHERE identificador = (SELECT MAX(identificador) FROM DT_etl_arquivo_dados_colaborador_app3);
+
+	delete from DT_cad_dados_colaborador_app3 -- DELETE
+	where cenario in (select distinct cenario from DT_etl_arquivo_dados_colaborador_app3)
+
+	exec sp_t6_etl_log_add 'Início do tratamento dos dados e inserção na tabela final.', @grupo = 'INFO', @tipo_processo = 2
+
+	insert into DT_cad_dados_colaborador_app3 (
+		cod_user,
+		dat_update,
+		centro_de_custo,
+		matricula,
+		colaborador,
+		admissao,
+		cargo,
+		salario,
+		tipo_de_contrato,
+		cenario,
+		vale_transporte,
+		estacionamento,
+		previdencia_privada,
+		dependentes,
+		sk_conta,
+		sk_cenario,
+		sk_tempo,
+		sk_entidade,
+		sk_centro_de_custos,
+		sk_cargo,
+		sk_colaborador,
+		sk_consolidacao,
+		headcount,
+		carga_horaria_mensal,
+		tempo_de_casa,
+		qt_trienios,
+		nivel_cargo
+	)
+	select
+		cod_user,
+		getdate(),
+		centro_de_custo,
+		matricula,
+		nome as colaborador, 
+		CAST(admissao as DATE) as admissao, 
+		cargo,		
+		 CAST(salario_mes as numeric(28,14)) 
+		 as salario, 
+		tipo, 
+		@sk_cenario as cenario, 
+		CAST(vale_transporte as numeric(28,14)) as vale_transporte, 
+		CAST(estacionamento as numeric(28,14)) as estacionamento,  
+		CAST(previdencia_privada as numeric(28,14)) as previdencia_privada, 
+		dependentes,
+		sk_conta,
+		sk_cenario,
+		sk_tempo,
+		sk_entidade,
+		sk_centro_de_custos,
+		sk_cargo,
+		sk_colaborador,
+		sk_consolidacao,
+		headcount,
+		carga_horaria_mensal,
+		tempo_de_casa,
+		qt_trienios,
+		nivel_cargo
+	from DT_etl_tmp_dados_colaborador_app3
+
+	set @contador = @@ROWCOUNT
+	set @txt = 'Carregados: ' + format(@contador,'N0') + ' registros na tabela final.'
+	exec sp_t6_etl_log_add @txt, @grupo = 'INFO', @tipo_processo = 2
+
+	exec sp_t6_etl_log_add '>>> FINAL SP <<<', @grupo = 'INFO', @tipo_processo = 2
+
+END
+GO
