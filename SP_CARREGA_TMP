@@ -1,0 +1,150 @@
+ALTER PROCEDURE [dbo].[sp_app03_carrega_tmp_rh] 
+AS
+BEGIN
+
+	exec sp_t6_etl_log_add '<<< INÍCIO SP >>>', @grupo = 'INFO', @tipo_processo = 2
+
+	declare @sk_cenario int
+	declare @nome_arq nvarchar(255)
+	declare @txt nvarchar(255)
+	declare @contador int;
+	declare @sk_tempo int;
+
+	select @nome_arq = dac.arquivo_fileName
+	from DT_etl_arquivo_dados_colaborador_app3 dac
+	where dac.identificador = (select max(identificador) from DT_etl_arquivo_dados_colaborador_app3)
+
+	set @txt = 'Carregando arquivo: ' + @nome_arq
+	exec sp_t6_etl_log_add @txt, @grupo = 'INFO', @tipo_processo = 2
+
+	select @sk_cenario = cenario
+	FROM DT_etl_arquivo_dados_colaborador_app3
+	WHERE identificador = (SELECT MAX(identificador) FROM DT_etl_arquivo_dados_colaborador_app3);
+
+	truncate table DT_etl_tmp_dados_colaborador_app3
+
+	exec sp_t6_etl_log_add 'Limpeza da tabela TMP e inserção dos novos dados.', @grupo = 'INFO', @tipo_processo = 2
+
+	insert into DT_etl_tmp_dados_colaborador_app3(
+		cod_user,
+		dat_update,
+		centro_de_custo,
+		matricula,
+		nome,
+		admissao,
+		cargo,
+		salario_mes,
+		tipo,
+		vale_transporte,
+		estacionamento,
+		previdencia_privada,
+		dependentes,
+		headcount,
+		carga_horaria_mensal,
+		sk_tempo,
+		tempo_de_casa,
+		qt_trienios,
+		nivel_cargo,
+		sk_colaborador
+	)
+	select
+		'admin',
+		getdate(),
+		dt.centro_de_custo,
+		CASE
+			WHEN LEN(matricula) < 6 
+			THEN RIGHT(REPLICATE('0', 6) + matricula, 6)
+			ELSE matricula
+		END as matricula,
+		dt.nome, 
+		dt.admissao,
+		dt.cargo, 
+		dt.salario_mes, 
+		dt.tipo,  
+		dt.vale_transporte, 
+		dt.estacionamento,  
+		dt.previdencia_privada, 
+		dt.dependentes,
+		1 as headcount,
+		case when dt.nivel_cargo = 'ESTAGIÁRIO' then 80 else  160 end as carga_horaria_mensal,
+		t.sk_tempo,
+		datediff(day,dt.admissao,c.date_start)/365 as tempo_de_casa,
+		datediff(day,dt.admissao,c.date_start)/365/3 as qt_trienio,
+		dt.nivel_cargo,
+		-1
+	from DT_etl_dados_colaborador_app3 dt
+	inner join d_cenario_app3 c on c.sk_cenario = @sk_cenario
+	inner join d_tempo_app3 t on t.date between c.date_start and c.date_end
+	where tipo <> 'VAGA'
+
+	union all
+
+		select distinct
+		'admin',
+		getdate(),
+		dt.centro_de_custo,
+		matricula ,
+		dt.nome, 
+		dt.admissao,
+		dt.cargo, 
+		cast(dt.salario_mes as numeric(18,2)), 
+		dt.tipo,  
+		dt.vale_transporte, 
+		dt.estacionamento,  
+		dt.previdencia_privada, 
+		dt.dependentes,
+		1 as headcount,
+		case when dt.nivel_cargo = 'ESTAGIÁRIO' then 80 else  160 end as carga_horaria_mensal,
+		t.sk_tempo,
+		case when admissao = '' then 0 else datediff(day,dt.admissao,c.date_start)/365 end as tempo_de_casa,
+		case when admissao = '' then 0 else datediff(day,dt.admissao,c.date_start)/365/3 end  as qt_trienio,
+		dt.nivel_cargo,
+		sk_colaborador
+	from DT_etl_dados_colaborador_app3 dt
+	inner join d_colaborador_app3 col on col.colaborador = cast(identificador as varchar(10)) + ' - ' +  trim(dt.nome) + ' - ' + trim(dt.cargo)
+	inner join d_cenario_app3 c on c.sk_cenario = @sk_cenario
+	inner join d_tempo_app3 t on t.date between c.date_start and c.date_end
+	where dt.tipo = 'VAGA' 
+
+	
+
+	set @contador = @@ROWCOUNT
+	set @txt = 'Carregados: ' + format(@contador,'N0') + ' registros na tabela temporária.'
+	exec sp_t6_etl_log_add @txt, @grupo = 'INFO', @tipo_processo = 2
+
+	exec sp_t6_etl_log_add 'Update nas SKs.', @grupo = 'INFO', @tipo_processo = 2
+
+	update DT_etl_tmp_dados_colaborador_app3
+	set sk_cenario = @sk_cenario,
+		sk_consolidacao = -1,
+		sk_entidade = 200,	
+		sk_cargo = -1,
+		sk_centro_de_custos = -1
+	
+
+
+	update DT_etl_tmp_dados_colaborador_app3
+	set sk_colaborador = col.sk_colaborador
+	from DT_etl_tmp_dados_colaborador_app3 dt
+	inner join d_colaborador_app3 col on (isnull(dt.matricula,'') = col.codigo and dt.nome = col.nome)
+	and dt.tipo <>'Vaga'
+
+	
+	update DT_etl_tmp_dados_colaborador_app3
+	set sk_colaborador = col.sk_colaborador
+	from DT_etl_tmp_dados_colaborador_app3 dt
+	inner join d_colaborador_app3 col on col.colaborador = cast(identificador as varchar(10)) + ' - ' +  trim(dt.nome) + ' - ' + trim(dt.cargo)
+	and dt.tipo ='Vaga'
+
+	--update DT_etl_tmp_dados_colaborador_app3
+	--set sk_cargo = car.sk_cargo
+	--from DT_etl_tmp_dados_colaborador_app3 dt
+	--inner join d_cargo_app3 car on (dt.cargo = car.cargo)
+
+	update DT_etl_tmp_dados_colaborador_app3
+	set sk_centro_de_custos = cen.sk_centro_de_custos
+	from DT_etl_tmp_dados_colaborador_app3 dt
+	inner join d_centro_de_custos_app3 cen on (dt.centro_de_custo = cen.codigo_centro_de_custo)
+	
+END
+GO
